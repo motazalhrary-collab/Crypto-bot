@@ -55,5 +55,6 @@ elif z_score > 2:
           f"• أخذ الربح (TP): `{take_profit:.2f}$`\n" \
           f"• قيمة Z-Score: `{z_score:.2f}`"
     send_telegram_alert(msg)
-
-print(f"تم فحص السوق بنجاح | السعر: {close_price} | Z-Score: {z_score:.2f}")
+# إرسال رسالة تأكيد مع كل عملية فحص
+status_msg = f"🔍 تم فحص السوق بنجاح\nالسعر: {close_price}\nZ-Score: {z_score:.2f}"
+send_telegram_alert(status_msg)
