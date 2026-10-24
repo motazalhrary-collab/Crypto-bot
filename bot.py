@@ -14,9 +14,10 @@ def send_telegram_alert(message):
         "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=payload)
+    response = requests.post(url, json=payload)
+    print("Telegram API Response:", response.text) # سيطبع لنا سبب أي مشكلة في السجلات مباشرة
 
-# جلب بيانات Kraken (تم رفع الحد إلى 250 شمعة لحساب المتوسط طويل الأجل بدقة)
+# جلب بيانات Kraken (250 شمعة لحساب المتوسط طويل الأجل)
 exchange = ccxt.kraken()
 bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='1h', limit=250)
 df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -26,7 +27,7 @@ df['SMA_20'] = df['close'].rolling(window=20).mean()
 df['Std_20'] = df['close'].rolling(window=20).std()
 df['Z_Score'] = (df['close'] - df['SMA_20']) / df['Std_20']
 
-# 1. إضافة فلتر الاتجاه المؤسسي (متوسط 200 شمعة)
+# إضافة فلتر الاتجاه المؤسسي (متوسط 200 شمعة)
 df['SMA_200'] = df['close'].rolling(window=200).mean()
 
 latest = df.iloc[-1]
@@ -36,7 +37,6 @@ z_score = latest['Z_Score']
 sma_200 = latest['SMA_200']
 
 # شروط الدخول مع فلتر الاتجاه المطور:
-# - للشراء (Long): يجب أن يكون الانحراف أقل من -2 **و** السعر فوق متوسط 200 (لتجنب الشراء في انهيار هابط)
 if z_score < -2 and close_price > sma_200:
     entry = close_price
     stop_loss = close_price - (1.5 * std)
@@ -50,7 +50,6 @@ if z_score < -2 and close_price > sma_200:
           f"• حالة الفلتر: فوق SMA 200 (ترند آمن) ✅"
     send_telegram_alert(msg)
 
-# - للبيع (Short): يجب أن يكون الانحراف أكبر من 2 **و** السعر تحت متوسط 200
 elif z_score > 2 and close_price < sma_200:
     entry = close_price
     stop_loss = close_price + (1.5 * std)
@@ -65,13 +64,12 @@ elif z_score > 2 and close_price < sma_200:
     send_telegram_alert(msg)
 
 else:
-    # رسالة فحص دورية توضح حالة السوق والفلتر
     trend_status = "صاعد 📈" if close_price > sma_200 else "هابط 📉"
-    status_msg = f"🔍 تم فحص السوق بنجاح\n" \
-                 f"السعر: {close_price}\n" \
-                 f"Z-Score: {z_score:.2f}\n" \
-                 f"الاتجاه العام: {trend_status}\n" \
-                 f"الحالة: بانتظار توافق شروط الانحراف والاتجاه معاً."
+    status_msg = f"🔍 **تم فحص السوق بنجاح**\n" \
+                 f"• السعر: `{close_price:.2f}$`\n" \
+                 f"• Z-Score: `{z_score:.2f}`\n" \
+                 f"• الاتجاه العام: {trend_status}\n" \
+                 f"• الحالة: بانتظار توافق شروط الانحراف والاتجاه معاً."
     send_telegram_alert(status_msg)
 
-print(f"تم فحص السوق بنجاح | السعر: {close_price} | Z-Score: {z_score:.2f} | الاتجاه: {'صاعد' if close_price > sma_200 else 'هابط'}")
+print(f"تم فحص السوق بنجاح | السعر: {close_price:.2f} | Z-Score: {z_score:.2f} | الاتجاه: {'صاعد' if close_price > sma_200 else 'هابط'}")
